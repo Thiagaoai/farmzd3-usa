@@ -11,6 +11,12 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* values are inlined at build time. Pass them as build args in Dokploy;
+# an ARG without a default stays unset when not provided, so runtime env still applies.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_FARMZ3D_WHATSAPP
+ARG NEXT_PUBLIC_FARMZ3D_INSTAGRAM
+ARG FARMZ3D_SITE_URL
 RUN npm run build
 
 FROM node:22-alpine AS runner
