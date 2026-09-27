@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Farmz3D">
+  <rect width="64" height="64" rx="14" fill="#0B0C0E"/>
+  <path d="M18 46V18h22v6H25v5h13v6H25v11z" fill="#F5F5F3"/>
+  <rect x="42" y="38" width="8" height="8" rx="2" fill="#2B5BFF"/>
+</svg>

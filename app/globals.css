@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: #f5f5f3;
+  color: #0b0c0e;
+  font-family: var(--fz-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ticker */
+@keyframes fz-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.fz-marquee {
+  animation: fz-marquee 38s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fz-marquee { animation: none; }
+}
+
+/* Typography. Unlayered so it wins over the body default. */
+.fz-root,
+.fz-root * {
+  font-family: var(--fz-body), ui-sans-serif, system-ui, sans-serif;
+}
+.fz-root .fz-display,
+.fz-root .fz-display * {
+  font-family: var(--fz-display), ui-sans-serif, system-ui, sans-serif;
+}
+.fz-root .fz-mono,
+.fz-root .fz-mono * {
+  font-family: var(--fz-mono), ui-monospace, monospace;
+}

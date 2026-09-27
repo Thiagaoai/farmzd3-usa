@@ -1,1 +1,89 @@
-# farmzd3-usa
+# Farmz3D — farmz3d.shop
+
+Loja de presentes personalizados impressos em 3D (Farmz3D) + painel do Thiago e da Bruna.
+
+- **Loja** (`/`): 34 produtos, preços aprovados no painel, pedido com **imagem** (foto/logo), **WhatsApp da Bruna** em toda a página.
+- **Pedido**: chega por **email** (com a imagem anexada e botão "Reply on WhatsApp") e aparece no **painel**.
+- **Painel** (`/admin`): pedidos com imagem e botão "WhatsApp do cliente", status, decisões de preço com fonte de mercado, Jev (TypeSafe) para denominador comum e checagem de pedidos.
+
+Stack: Next.js 16 · TypeScript · Tailwind 4 · Supabase (Postgres + Storage privado) · Resend · Docker.
+
+---
+
+## 1. Rodar no seu computador (sem configurar nada)
+```bash
+git clone https://github.com/Thiagaoai/farmzd3-usa.git
+cd farmzd3-usa
+npm ci
+npm run local
+```
+- Loja: http://localhost:3002
+- Painel: http://localhost:3002/admin/login → usuário `admin`, senha `farmz3d-local`
+
+No modo local, pedidos e imagens ficam em `.data/` (apague a pasta para zerar) e emails não são enviados. Se criar `.env.local` com Supabase/Resend reais, eles são usados.
+
+Checagem completa: `npm run check` (lint + tipos + testes + build).
+
+## 2. Banco (Supabase)
+O projeto `thiagao-newsletter` (qropstlezhnxtwkxirwb) **já tem tudo aplicado** — é só usar a mesma URL e service role key.
+
+Para um projeto novo: SQL Editor → rode em ordem `supabase/migrations/001…004`. Tudo com RLS ligado e sem políticas públicas (só o servidor acessa). O bucket `farmz3d-order-images` é **privado**.
+
+## 3. Variáveis de ambiente (Dokploy → Environment)
+Obrigatórias:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://qropstlezhnxtwkxirwb.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+RESEND_API_KEY=...
+FARMZ3D_ORDERS_EMAIL=<email da Bruna>             # recebe os pedidos
+FARMZ3D_FROM_EMAIL="Farmz3D <orders@farmz3d.shop>" # domínio verificado no Resend (passo 5)
+ADMIN_DASHBOARD_USER=bruna
+ADMIN_DASHBOARD_PASSWORD=<senha forte, 16+ caracteres>
+ADMIN_DASHBOARD_TOKEN=<aleatório: openssl rand -hex 32>
+FARMZ3D_SITE_URL=https://farmz3d.shop
+```
+Opcionais:
+```
+NEXT_PUBLIC_FARMZ3D_WHATSAPP=17747225366   # padrão: WhatsApp da Bruna (774) 722-5366
+NEXT_PUBLIC_FARMZ3D_INSTAGRAM=@farmz3d
+TYPESAFE_API_KEY=...                       # liga o Jev no painel
+ADMIN_API_TOKEN=<aleatório>                # acesso por API (Bearer), opcional
+```
+`NEXT_PUBLIC_*` entram no **build**: no Dokploy, marque-as também como build args (ou refaça o deploy depois de mudar).
+
+## 4. Publicar em farmz3d.shop (Hostinger + Dokploy)
+1. **Dokploy** → *Create Application* → GitHub → repositório `Thiagaoai/farmzd3-usa`, branch `main` → *Build type*: **Dockerfile**.
+2. *Environment*: cole as variáveis do passo 3.
+3. *Domains* → adicione `farmz3d.shop` e `www.farmz3d.shop`, **porta 3000**, HTTPS ligado, certificado **Let's Encrypt**.
+4. **Hostinger** → *Domínios → farmz3d.shop → DNS*: apague os registros A/CNAME padrão de `@` e `www` (os que apontam para o parking da Hostinger) e crie:
+
+   | Tipo | Nome | Valor | TTL |
+   |---|---|---|---|
+   | A | `@` | IP do servidor do Dokploy (o mesmo de `thiagao.io`) | 300 |
+   | CNAME | `www` | `farmz3d.shop` | 300 |
+
+5. Deploy. Em alguns minutos (até algumas horas) `https://farmz3d.shop` abre a loja. Teste: `dig +short farmz3d.shop` deve mostrar o IP do servidor, e `https://farmz3d.shop/api/health` responde `{"ok":true}`.
+
+## 5. Emails dos pedidos (Resend)
+1. Resend → *Domains → Add domain* → `farmz3d.shop`.
+2. Copie os registros que o Resend mostrar (TXT/MX de SPF e DKIM) para o **DNS da Hostinger**. Espere ficar *Verified*.
+3. Use `FARMZ3D_FROM_EMAIL="Farmz3D <orders@farmz3d.shop>"`.
+4. Teste: faça um pedido com foto → a Bruna recebe o email com a imagem anexada; o cliente recebe a confirmação com o WhatsApp da loja.
+
+## 6. WhatsApp — como fica o atendimento
+- Cliente: botão verde flutuante, link no topo/rodapé e, depois do pedido, **Chat with us on WhatsApp** com o número do pedido já escrito.
+- Bruna: no email do pedido, **Reply on WhatsApp**; no painel, **WhatsApp do cliente** com mensagem pronta. O número de WhatsApp do cliente é obrigatório no pedido.
+- Usa links oficiais `wa.me` (funciona no WhatsApp normal ou Business, sem aprovação da Meta). Resposta automática/robô exige a API oficial do WhatsApp Business (verificação da Meta) — próximo passo, se quiserem.
+
+## 7. Segurança
+- Upload: tipo conferido pelos bytes (JPG/PNG/WebP/HEIC), máx. 8 MB, nome aleatório, bucket privado; só admin logado vê.
+- Login: limite de 10 tentativas/hora por IP e por usuário, comparação em tempo constante, cookie `httpOnly` + `secure` + `sameSite`.
+- Rotas do painel recusam requisições de outros sites (CSRF); cada rota confere a autenticação.
+- Preços e total calculados no servidor (nunca vêm do navegador); anti-spam (honeypot + tempo mínimo + limite por IP).
+- Cabeçalhos: CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`. Next.js 16.3.6, `npm audit` sem vulnerabilidades.
+- Trocar `ADMIN_DASHBOARD_TOKEN` desloga todo mundo.
+
+## 8. Produtos, preços e licenças
+- Produtos: `lib/farmz3d/catalog.ts` · imagens: `lib/farmz3d/media.ts` (prévias geradas por IA — troque por fotos reais em `public/`).
+- Preços: `lib/decisions/products.ts` (3 opções + fontes de mercado); aprovação no painel muda o site na hora.
+- Licenças dos modelos 3D: [docs/MODELOS-E-LICENCAS.md](docs/MODELOS-E-LICENCAS.md) (inclui por que não imprimimos escudos de times).
