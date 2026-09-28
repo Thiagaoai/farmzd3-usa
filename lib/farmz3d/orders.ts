@@ -6,6 +6,7 @@ import { formatUsd, type OrderInput } from './catalog';
 import { FARMZ3D_WHATSAPP, formatUsPhone, toWhatsappDigits, whatsappLink } from './contact';
 import type { OrderImage } from './order-images';
 import { getLiveCatalog } from './pricing';
+import { releaseStock, reserveStock, type StoreProduct } from './products';
 import { getActiveCampaign, newYorkToday } from './season';
 
 const ORDER_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -23,6 +24,19 @@ export function getFarmz3dConfigStatus() {
   };
 }
 
+// A customer-facing reason the order cannot be taken (sold out, unavailable).
+export class OrderRejected extends Error {}
+
+export function siteUrl() {
+  return (process.env.FARMZ3D_SITE_URL || 'https://farmz3d.shop').replace(/\/$/, '');
+}
+
+export function formatShipAddress(order: { shipLine1?: string | null; shipLine2?: string | null; shipCity?: string | null; shipState?: string | null; shippingZip?: string | null }) {
+  return [order.shipLine1, order.shipLine2, [order.shipCity, [order.shipState?.toUpperCase(), order.shippingZip].filter(Boolean).join(' ')].filter(Boolean).join(', ')]
+    .filter(Boolean)
+    .join(', ');
+}
+
 type SavedOrder = {
   orderNumber: string;
   productName: string;
@@ -32,11 +46,25 @@ type SavedOrder = {
   campaign: string;
 };
 
-export async function saveOrder(order: OrderInput, imagePath: string | null = null): Promise<{ saved: SavedOrder; stored: boolean; storeError?: string }> {
-  // Price and campaign come from the approved decisions, never from the browser.
+export async function getOrderableProduct(productId: string): Promise<StoreProduct> {
+  const { products } = await getLiveCatalog();
+  const product = products.find((item) => item.id === productId);
+  if (!product) throw new OrderRejected('This item is no longer available. Please choose another one.');
+  if (product.soldOut) throw new OrderRejected('Sorry, this item is sold out.');
+  return product;
+}
+
+export async function saveOrder(
+  order: OrderInput,
+  imagePath: string | null = null,
+): Promise<{ saved: SavedOrder; product: StoreProduct; stored: boolean; storeError?: string }> {
+  // Price and campaign come from the panel and the approved decisions, never from the browser.
   const { products, leadDays, shippingCents: flatShipping } = await getLiveCatalog();
   const product = products.find((item) => item.id === order.productId);
-  if (!product) throw new Error('Unknown product.');
+  if (!product) throw new OrderRejected('This item is no longer available. Please choose another one.');
+
+  const stock = await reserveStock(product.id, order.quantity);
+  if (!stock.ok) throw new OrderRejected(stock.message);
 
   const campaign = getActiveCampaign(new Date(), leadDays).id;
   const shippingCents = order.fulfillment === 'shipping' ? flatShipping : 0;
@@ -50,7 +78,7 @@ export async function saveOrder(order: OrderInput, imagePath: string | null = nu
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    return { saved: { orderNumber: createOrderNumber(), ...base }, stored: false, storeError: 'Supabase not configured.' };
+    return { saved: { orderNumber: createOrderNumber(), ...base }, product, stored: false, storeError: 'Supabase not configured.' };
   }
 
   let lastError = '';
@@ -68,6 +96,10 @@ export async function saveOrder(order: OrderInput, imagePath: string | null = nu
       needed_by: order.neededBy ?? null,
       fulfillment: order.fulfillment,
       shipping_zip: order.fulfillment === 'shipping' ? order.shippingZip ?? null : null,
+      ship_line1: order.fulfillment === 'shipping' ? order.shipLine1 ?? null : null,
+      ship_line2: order.fulfillment === 'shipping' ? order.shipLine2 ?? null : null,
+      ship_city: order.fulfillment === 'shipping' ? order.shipCity ?? null : null,
+      ship_state: order.fulfillment === 'shipping' ? order.shipState?.toUpperCase() ?? null : null,
       customer_name: order.name,
       customer_email: order.email.toLowerCase(),
       customer_phone: order.phone ?? null,
@@ -76,13 +108,14 @@ export async function saveOrder(order: OrderInput, imagePath: string | null = nu
       campaign,
     });
 
-    if (!error) return { saved: { orderNumber, ...base }, stored: true };
+    if (!error) return { saved: { orderNumber, ...base }, product, stored: true };
     lastError = error.message;
     // 23505 = unique violation on order_number; retry with a new number.
     if (error.code !== '23505') break;
   }
 
-  return { saved: { orderNumber: createOrderNumber(), ...base }, stored: false, storeError: lastError };
+  if (stock.reserved) await releaseStock(product.id, order.quantity);
+  return { saved: { orderNumber: createOrderNumber(), ...base }, product, stored: false, storeError: lastError };
 }
 
 function orderRows(order: OrderInput, saved: SavedOrder) {
@@ -95,7 +128,7 @@ function orderRows(order: OrderInput, saved: SavedOrder) {
     ['Estimated total', formatUsd(saved.estimatedTotalCents)],
     ['Personalization', order.personalization],
     ['Needed by', order.neededBy ?? '—'],
-    ['Fulfillment', order.fulfillment === 'shipping' ? `Shipping to ZIP ${order.shippingZip}` : 'Local pickup'],
+    ['Fulfillment', order.fulfillment === 'shipping' ? `Ship to ${formatShipAddress(order)}` : 'Local pickup'],
     ['Name', order.name],
     ['Email', order.email],
     ['WhatsApp / phone', order.phone],
@@ -129,6 +162,7 @@ export async function sendOrderEmails(order: OrderInput, saved: SavedOrder, imag
     ? whatsappLink(customerWhatsapp, `Hi ${order.name}! This is Bruna from Farmz3D about your order ${saved.orderNumber} (${saved.productName}).`)
     : null;
   const shopWhatsapp = whatsappLink(FARMZ3D_WHATSAPP, `Hi! My Farmz3D order is ${saved.orderNumber}.`);
+  const panelUrl = `${siteUrl()}/admin/pedidos/${saved.orderNumber}`;
 
   const owner = await resend.emails.send({
     from,
@@ -139,8 +173,8 @@ export async function sendOrderEmails(order: OrderInput, saved: SavedOrder, imag
       replyOnWhatsapp
         ? `<p style="font-family:Arial,sans-serif;margin-top:20px"><a href="${escapeHtml(replyOnWhatsapp)}" style="background:#25D366;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:bold">Reply on WhatsApp</a></p>`
         : ''
-    }`,
-    text: replyOnWhatsapp ? `${text}\n\nReply on WhatsApp: ${replyOnWhatsapp}` : text,
+    }<p style="font-family:Arial,sans-serif;margin-top:16px"><a href="${escapeHtml(panelUrl)}" style="color:#2B5BFF;font-weight:bold">Open order in the panel →</a></p>`,
+    text: `${replyOnWhatsapp ? `${text}\n\nReply on WhatsApp: ${replyOnWhatsapp}` : text}\n\nOpen in the panel: ${panelUrl}`,
     attachments: image ? [{ filename: `${saved.orderNumber}.${image.ext}`, content: Buffer.from(image.bytes), contentType: image.contentType }] : undefined,
   });
 

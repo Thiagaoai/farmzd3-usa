@@ -38,6 +38,10 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
   const [neededBy, setNeededBy] = useState('');
   const [fulfillment, setFulfillment] = useState<'shipping' | 'pickup'>('shipping');
   const [shippingZip, setShippingZip] = useState('');
+  const [shipLine1, setShipLine1] = useState('');
+  const [shipLine2, setShipLine2] = useState('');
+  const [shipCity, setShipCity] = useState('');
+  const [shipState, setShipState] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -98,6 +102,10 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
       neededBy,
       fulfillment,
       shippingZip: fulfillment === 'shipping' ? shippingZip : '',
+      shipLine1: fulfillment === 'shipping' ? shipLine1 : '',
+      shipLine2: fulfillment === 'shipping' ? shipLine2 : '',
+      shipCity: fulfillment === 'shipping' ? shipCity : '',
+      shipState: fulfillment === 'shipping' ? shipState : '',
       name,
       email,
       phone,
@@ -288,18 +296,48 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
       </div>
 
       {fulfillment === 'shipping' && (
-        <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E]">
-          Shipping ZIP code
-          <input
-            value={shippingZip}
-            onChange={(event) => setShippingZip(event.target.value)}
-            inputMode="numeric"
-            pattern="\d{5}(-\d{4})?"
-            placeholder="02601"
-            className={inputClass}
-            required
-          />
-        </label>
+        <div className="grid gap-4 sm:grid-cols-6">
+          <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E] sm:col-span-6">
+            Street address
+            <input value={shipLine1} onChange={(event) => setShipLine1(event.target.value)} autoComplete="address-line1" placeholder="12 Main St" className={inputClass} required maxLength={120} />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E] sm:col-span-6">
+            <span>
+              Apt, suite <span className="font-normal text-[#8A8F97]">(optional)</span>
+            </span>
+            <input value={shipLine2} onChange={(event) => setShipLine2(event.target.value)} autoComplete="address-line2" className={inputClass} maxLength={120} />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E] sm:col-span-3">
+            City
+            <input value={shipCity} onChange={(event) => setShipCity(event.target.value)} autoComplete="address-level2" placeholder="Hyannis" className={inputClass} required maxLength={80} />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E] sm:col-span-1">
+            State
+            <input
+              value={shipState}
+              onChange={(event) => setShipState(event.target.value.toUpperCase())}
+              autoComplete="address-level1"
+              placeholder="MA"
+              pattern="[A-Za-z]{2}"
+              maxLength={2}
+              className={`${inputClass} uppercase`}
+              required
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E] sm:col-span-2">
+            ZIP code
+            <input
+              value={shippingZip}
+              onChange={(event) => setShippingZip(event.target.value)}
+              autoComplete="postal-code"
+              inputMode="numeric"
+              pattern="\d{5}(-\d{4})?"
+              placeholder="02601"
+              className={inputClass}
+              required
+            />
+          </label>
+        </div>
       )}
 
       <div className="grid gap-5 sm:grid-cols-2">

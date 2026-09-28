@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { COLLECTIONS, formatUsd, type CollectionId } from '@/lib/farmz3d/catalog';
 import { FARMZ3D_WHATSAPP, formatUsPhone, whatsappLink } from '@/lib/farmz3d/contact';
-import { LIFESTYLE_MEDIA, PRODUCT_MEDIA } from '@/lib/farmz3d/media';
+import { LIFESTYLE_MEDIA } from '@/lib/farmz3d/media';
 import { getLiveCatalog } from '@/lib/farmz3d/pricing';
 import { formatLongDate, getActiveCampaign, getUpcomingCampaigns, newYorkToday } from '@/lib/farmz3d/season';
 import { body, display, mono } from './fonts';
@@ -74,10 +74,10 @@ export default async function Farmz3dPage() {
     campaign.id,
     ...COLLECTIONS.map((collection) => collection.id).filter((id) => id !== campaign.id),
   ];
-  const firstProduct = PRODUCTS.find((product) => product.collection === campaign.id) ?? PRODUCTS[0];
+  const firstProduct = PRODUCTS.find((product) => product.collection === campaign.id && !product.soldOut) ?? PRODUCTS.find((product) => !product.soldOut) ?? PRODUCTS[0];
   const productOptions = collectionOrder.flatMap((collectionId) => {
     const collection = COLLECTIONS.find((item) => item.id === collectionId);
-    return PRODUCTS.filter((product) => product.collection === collectionId).map((product) => ({
+    return PRODUCTS.filter((product) => product.collection === collectionId && !product.soldOut).map((product) => ({
       id: product.id,
       name: product.name,
       collectionName: collection?.name ?? collectionId,
@@ -264,20 +264,31 @@ export default async function Farmz3dPage() {
                   </Reveal>
                   <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {products.map((product, index) => {
-                      const media = PRODUCT_MEDIA[product.id];
                       return (
                         <Reveal key={product.id} delay={index * 0.06} className="h-full">
                           <TiltCard className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-[#E4E5E8] bg-white transition-shadow duration-500 hover:shadow-[0_40px_80px_-40px_rgba(11,12,14,0.35)]">
                             <div className="relative aspect-[4/5] overflow-hidden bg-[#ECEDEF]">
-                              {media ? (
+                              {product.imageSrc ? (
                                 <Image
-                                  src={media.src}
-                                  alt={media.alt}
+                                  src={product.imageSrc}
+                                  alt={product.imageAlt}
                                   fill
                                   sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                                   className="object-cover transition duration-700 group-hover:scale-[1.04]"
                                 />
-                              ) : null}
+                              ) : (
+                                <span className="grid h-full place-items-center text-6xl">{product.emoji}</span>
+                              )}
+                              {product.soldOut && (
+                                <span className="absolute right-4 top-4 rounded-full bg-[#0B0C0E] px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white fz-mono">
+                                  Sold out
+                                </span>
+                              )}
+                              {!product.soldOut && product.stock !== null && product.stock <= product.lowStockAt && (
+                                <span className="absolute right-4 top-4 rounded-full bg-[#2B5BFF] px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white fz-mono">
+                                  Only {product.stock} left
+                                </span>
+                              )}
                               <span className="absolute left-4 top-4 rounded-full bg-white/80 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-[#0B0C0E] backdrop-blur fz-mono">
                                 {product.unitLabel}
                               </span>
@@ -287,13 +298,17 @@ export default async function Farmz3dPage() {
                               <p className="mt-1.5 flex-1 text-sm leading-relaxed text-[#5A5F66]">{product.description}</p>
                               <div className="mt-5 flex items-center justify-between">
                                 <p className="text-lg fz-mono">{formatUsd(product.priceCents)}</p>
-                                <a
-                                  href="#order"
-                                  data-product-id={product.id}
-                                  className="inline-flex items-center gap-1.5 rounded-full bg-[#0B0C0E] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#2B5BFF]"
-                                >
-                                  Order <ArrowUpRight className="h-3.5 w-3.5" />
-                                </a>
+                                {product.soldOut ? (
+                                  <span className="rounded-full bg-[#ECEDEF] px-4 py-2 text-[13px] font-medium text-[#8A8F97]">Sold out</span>
+                                ) : (
+                                  <a
+                                    href="#order"
+                                    data-product-id={product.id}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-[#0B0C0E] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#2B5BFF]"
+                                  >
+                                    Order <ArrowUpRight className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
                               </div>
                             </div>
                           </TiltCard>

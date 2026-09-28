@@ -20,12 +20,16 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   business_decision_positions: [['decision_id', 'person']],
   business_decision_mediations: [['decision_id']],
   farmz3d_order_triage: [['order_number']],
+  farmz3d_products: [['id']],
 };
 
 function defaults(table: string): Row {
   const now = new Date().toISOString();
   const base: Row = { id: randomUUID(), created_at: now };
-  if (table === 'farmz3d_orders') return { ...base, status: 'new', shipping_cents: 0, updated_at: now };
+  if (table === 'farmz3d_orders') return { ...base, status: 'new', shipping_cents: 0, payment_status: 'unpaid', updated_at: now };
+  if (table === 'farmz3d_products') {
+    return { ...base, description: '', personalization_hint: '', required_details: '', unit_label: 'each', emoji: '🎁', low_stock_at: 3, active: true, sort_order: 0, updated_at: now };
+  }
   if (table === 'business_decisions') return { ...base, decided_at: now };
   if (table === 'business_decision_positions') return { ...base, updated_at: now };
   return base;

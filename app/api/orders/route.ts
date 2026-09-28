@@ -1,8 +1,9 @@
 import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getProduct, OrderInputSchema } from '@/lib/farmz3d/catalog';
+import { OrderInputSchema } from '@/lib/farmz3d/catalog';
+import { logOrderMessage } from '@/lib/farmz3d/messages';
 import { MAX_ORDER_IMAGE_BYTES, readOrderImageUpload, storeOrderImage } from '@/lib/farmz3d/order-images';
-import { getFarmz3dConfigStatus, saveOrder, sendOrderEmails } from '@/lib/farmz3d/orders';
+import { getFarmz3dConfigStatus, getOrderableProduct, OrderRejected, saveOrder, sendOrderEmails } from '@/lib/farmz3d/orders';
 import { getClientIp, isRateLimited } from '@/lib/shared/request-guard';
 import { isTypeSafeConfigured } from '@/lib/typesafe/client';
 import { triageOrder } from '@/lib/typesafe/order-triage';
@@ -15,7 +16,7 @@ const MAX_ORDERS_PER_IP_PER_HOUR = 10;
 // Image plus the text fields; anything bigger is rejected before reading the body.
 const MAX_BODY_BYTES = MAX_ORDER_IMAGE_BYTES + 256 * 1024;
 
-const TEXT_FIELDS = ['productId', 'quantity', 'personalization', 'neededBy', 'fulfillment', 'shippingZip', 'name', 'email', 'phone', 'notes', 'company'] as const;
+const TEXT_FIELDS = ['productId', 'quantity', 'personalization', 'neededBy', 'fulfillment', 'shippingZip', 'shipLine1', 'shipLine2', 'shipCity', 'shipState', 'name', 'email', 'phone', 'notes', 'company'] as const;
 
 export async function POST(request: Request) {
   const declaredLength = Number(request.headers.get('content-length') ?? 0);
@@ -70,6 +71,9 @@ export async function POST(request: Request) {
   if (!upload.ok) return NextResponse.json({ ok: false, message: upload.message, field: 'image' }, { status: 400 });
 
   try {
+    // Check availability before storing the image.
+    await getOrderableProduct(order.productId);
+
     // A failed image upload does not block the order: the owner email still carries the image.
     let imagePath: string | null = null;
     if (upload.image) {
@@ -78,7 +82,7 @@ export async function POST(request: Request) {
       else console.error('[farmz3d] order image not stored', { error: storedImage.error });
     }
 
-    const { saved, stored, storeError } = await saveOrder(order, imagePath);
+    const { saved, product, stored, storeError } = await saveOrder(order, imagePath);
     const email = config.email ? await sendOrderEmails(order, saved, upload.image) : { emailed: false as const, error: 'Email not configured.' };
 
     if (!stored && !email.emailed) {
@@ -92,9 +96,19 @@ export async function POST(request: Request) {
     if (!stored) console.error('[farmz3d] order emailed but not stored', { storeError });
     if (!email.emailed && config.email) console.error('[farmz3d] order stored but email failed', { error: email.error });
 
+    if (stored) {
+      after(() =>
+        logOrderMessage({
+          orderNumber: saved.orderNumber,
+          channel: 'system',
+          direction: 'internal',
+          body: email.emailed ? 'Pedido recebido pelo site. Emails enviados (loja e cliente).' : 'Pedido recebido pelo site. Email NÃO enviado — responda o cliente pelo painel.',
+        }),
+      );
+    }
+
     // Jev production check runs after the response, so the customer never waits on it.
-    const product = getProduct(order.productId);
-    if (stored && product && isTypeSafeConfigured()) {
+    if (stored && isTypeSafeConfigured()) {
       after(async () => {
         const result = await triageOrder(product, order);
         if (result.ok) await saveOrderTriage(saved.orderNumber, result.triage);
@@ -110,6 +124,9 @@ export async function POST(request: Request) {
       emailed: email.emailed,
     });
   } catch (error) {
+    if (error instanceof OrderRejected) {
+      return NextResponse.json({ ok: false, message: error.message, field: 'productId' }, { status: 409 });
+    }
     console.error('[farmz3d] order failed', error);
     return NextResponse.json({ ok: false, message: 'Unexpected error. Please try again.' }, { status: 500 });
   }

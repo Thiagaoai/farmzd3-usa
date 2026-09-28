@@ -34,5 +34,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin'],
+  // The panel pages; /admin/login stays public.
+  matcher: ['/admin', '/admin/((?!login).*)'],
 };

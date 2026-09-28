@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { isFarmz3dAdminRequest } from '@/lib/farmz3d/admin-auth';
-import { getProduct } from '@/lib/farmz3d/catalog';
+import { findProduct } from '@/lib/farmz3d/pricing';
 import { isTypeSafeConfigured } from '@/lib/typesafe/client';
 import { triageOrder } from '@/lib/typesafe/order-triage';
 import { saveOrderTriage } from '@/lib/typesafe/store';
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const order = data?.[0];
   if (!order) return NextResponse.json({ ok: false, message: 'Pedido não encontrado.' }, { status: 404 });
 
-  const product = getProduct(order.product_id);
+  const product = await findProduct(order.product_id);
   if (!product) return NextResponse.json({ ok: false, message: 'Produto não existe mais no catálogo.' }, { status: 422 });
 
   const result = await triageOrder(product, order);

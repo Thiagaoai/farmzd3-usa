@@ -82,7 +82,7 @@ function subscribeDecider(onChange: () => void) {
 }
 
 // Who is approving on this device (remembered per browser).
-function useDecider(): [Decider, (value: Decider) => void] {
+export function useDecider(): [Decider, (value: Decider) => void] {
   const decider = useSyncExternalStore(subscribeDecider, readDecider, () => 'thiago' as Decider);
 
   function setDecider(value: Decider) {

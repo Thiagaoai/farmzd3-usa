@@ -377,8 +377,6 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-const PRODUCT_IDS = PRODUCTS.map((product) => product.id) as [string, ...string[]];
-
 export function getProduct(productId: string) {
   return PRODUCTS.find((product) => product.id === productId) ?? null;
 }
@@ -397,7 +395,8 @@ const optionalText = (max: number) =>
 
 export const OrderInputSchema = z
   .object({
-    productId: z.enum(PRODUCT_IDS, { error: 'Please choose a product.' }),
+    // Products are managed in the panel; existence and price are checked on the server.
+    productId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,59}$/, 'Please choose a product.'),
     quantity: z.coerce.number().int().min(1).max(50),
     personalization: z.string().trim().min(1, 'Tell us what to personalize.').max(300),
     neededBy: z
@@ -407,6 +406,10 @@ export const OrderInputSchema = z
       .or(z.literal('').transform(() => undefined)),
     fulfillment: z.enum(['pickup', 'shipping']),
     shippingZip: optionalText(10),
+    shipLine1: optionalText(120),
+    shipLine2: optionalText(120),
+    shipCity: optionalText(80),
+    shipState: optionalText(2),
     name: z.string().trim().min(2, 'Please enter your name.').max(120),
     email: z.email('Please enter a valid email.').max(200),
     // Required: customer service continues on WhatsApp after the order.
@@ -421,9 +424,14 @@ export const OrderInputSchema = z
     company: z.string().max(120).optional(),
     startedAt: z.number().optional(),
   })
-  .refine(
-    (order) => order.fulfillment === 'pickup' || /^\d{5}(-\d{4})?$/.test(order.shippingZip ?? ''),
-    { message: 'Enter a 5-digit US ZIP code for shipping.', path: ['shippingZip'] },
-  );
+  .superRefine((order, ctx) => {
+    if (order.fulfillment === 'pickup') return;
+    if (!order.shipLine1) ctx.addIssue({ code: 'custom', message: 'Enter the street address for shipping.', path: ['shipLine1'] });
+    if (!order.shipCity) ctx.addIssue({ code: 'custom', message: 'Enter the city for shipping.', path: ['shipCity'] });
+    if (!/^[A-Za-z]{2}$/.test(order.shipState ?? '')) ctx.addIssue({ code: 'custom', message: 'Enter the 2-letter state (e.g. MA).', path: ['shipState'] });
+    if (!/^\d{5}(-\d{4})?$/.test(order.shippingZip ?? '')) {
+      ctx.addIssue({ code: 'custom', message: 'Enter a 5-digit US ZIP code for shipping.', path: ['shippingZip'] });
+    }
+  });
 
 export type OrderInput = z.infer<typeof OrderInputSchema>;

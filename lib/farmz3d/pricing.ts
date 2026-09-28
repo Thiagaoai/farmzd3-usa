@@ -1,21 +1,15 @@
 import { getResolvedNumbers } from '@/lib/decisions/store';
-import { PRODUCTS, type PricedProduct } from './catalog';
+import { listProducts, type StoreProduct } from './products';
 import { ORDER_LEAD_DAYS, type CampaignId, type LeadDays } from './season';
 
-export const priceDecisionId = (productId: string) => `price:${productId}`;
+export { priceDecisionId } from './products';
 export const leadDaysDecisionId = (campaign: CampaignId) => `lead-days:${campaign}`;
-
-// Live catalog: approved decisions, or the recommended option while a decision is pending.
 export const SHIPPING_DECISION_ID = 'shipping:flat';
 
-export async function getLiveCatalog(): Promise<{ products: PricedProduct[]; leadDays: LeadDays; shippingCents: number }> {
-  const numbers = await getResolvedNumbers();
-
-  const products = PRODUCTS.map((product) => {
-    const priceCents = numbers.get(priceDecisionId(product.id));
-    if (priceCents === undefined) throw new Error(`Missing pricing decision for ${product.id}`);
-    return { ...product, priceCents };
-  });
+// Live catalog: products from the panel (price typed there, or the approved/recommended
+// price decision), plus the operational decisions (deadlines, shipping).
+export async function getLiveCatalog(): Promise<{ products: StoreProduct[]; leadDays: LeadDays; shippingCents: number }> {
+  const [{ products }, numbers] = await Promise.all([listProducts(), getResolvedNumbers()]);
 
   const leadDays = Object.fromEntries(
     (Object.keys(ORDER_LEAD_DAYS) as CampaignId[]).map((campaign) => [
@@ -28,4 +22,9 @@ export async function getLiveCatalog(): Promise<{ products: PricedProduct[]; lea
   if (shippingCents === undefined) throw new Error('Missing shipping decision');
 
   return { products, leadDays, shippingCents };
+}
+
+export async function findProduct(id: string) {
+  const { products } = await listProducts({ includeInactive: true });
+  return products.find((product) => product.id === id) ?? null;
 }

@@ -9,6 +9,9 @@ const valid = {
   neededBy: '',
   fulfillment: 'shipping',
   shippingZip: '02601',
+  shipLine1: '12 Main St',
+  shipCity: 'Hyannis',
+  shipState: 'MA',
   name: 'Jane Doe',
   email: 'jane@example.com',
   phone: '(508) 555-0123',
@@ -43,7 +46,8 @@ test('pickup does not need a ZIP; shipping does', () => {
 });
 
 test('invalid orders are rejected', () => {
-  assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'not-a-product' }).success, false);
+  // Unknown ids are rejected by the server against the live product list; the schema rejects malformed ones.
+  assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'Not a product!' }).success, false);
   assert.equal(OrderInputSchema.safeParse({ ...valid, quantity: 0 }).success, false);
   assert.equal(OrderInputSchema.safeParse({ ...valid, quantity: 51 }).success, false);
   assert.equal(OrderInputSchema.safeParse({ ...valid, email: 'nope' }).success, false);
@@ -55,4 +59,15 @@ test('a WhatsApp number is required', () => {
   assert.equal(OrderInputSchema.safeParse({ ...valid, phone: '' }).success, false);
   assert.equal(OrderInputSchema.safeParse({ ...valid, phone: '555-0123' }).success, false);
   assert.equal(OrderInputSchema.safeParse({ ...valid, phone: '+55 11 91234-5678' }).success, true);
+});
+
+test('shipping needs a full address; pickup does not', () => {
+  assert.equal(OrderInputSchema.safeParse({ ...valid, shipLine1: '' }).success, false);
+  assert.equal(OrderInputSchema.safeParse({ ...valid, shipState: 'Massachusetts' }).success, false);
+  assert.equal(OrderInputSchema.safeParse({ ...valid, fulfillment: 'pickup', shipLine1: '', shipCity: '', shipState: '', shippingZip: '' }).success, true);
+});
+
+test('product ids must be slugs', () => {
+  assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'Bad Id!' }).success, false);
+  assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'new-mug-2026' }).success, true);
 });
