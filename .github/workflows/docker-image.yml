@@ -1,0 +1,55 @@
+name: Build Docker image
+
+# Builds the production image on GitHub's runners (the Dokploy VPS is too small
+# to run `next build`) and publishes it to GHCR. Dokploy only pulls and runs it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-image
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/thiagaoai/farmzd3-usa
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOKPLOY_WEBHOOK: ${{ secrets.DOKPLOY_DEPLOY_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=https://qropstlezhnxtwkxirwb.supabase.co
+            NEXT_PUBLIC_FARMZ3D_WHATSAPP=17747225366
+            FARMZ3D_SITE_URL=https://farmz3d.shop
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Optional: set the repo secret DOKPLOY_DEPLOY_WEBHOOK to redeploy automatically.
+      - name: Trigger Dokploy deploy
+        if: ${{ env.DOKPLOY_WEBHOOK != '' }}
+        run: curl -fsS -X POST "$DOKPLOY_WEBHOOK"
