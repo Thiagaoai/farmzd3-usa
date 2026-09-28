@@ -10,7 +10,15 @@ export const metadata = {
   },
 };
 
+// Local demo only (npm run local): show the built-in credentials so nobody tries the production password.
+function localHint() {
+  if (process.env.NODE_ENV === 'production' || process.env.LOCAL_DEMO_DB !== '1') return null;
+  if (process.env.ADMIN_DASHBOARD_USER !== 'admin' || process.env.ADMIN_DASHBOARD_PASSWORD !== 'farmz3d-local') return null;
+  return 'Modo local: usuário admin · senha farmz3d-local (a senha do site farmz3d.shop não vale aqui).';
+}
+
 export default function AdminLoginPage() {
+  const hint = localHint();
   return (
     <main className="min-h-screen overflow-hidden bg-black px-6 py-10 text-white">
       <div className="pointer-events-none fixed inset-0">
@@ -37,7 +45,10 @@ export default function AdminLoginPage() {
             </p>
           </div>
 
-          <LoginForm />
+          <div className="grid gap-3">
+            {hint && <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">{hint}</p>}
+            <LoginForm />
+          </div>
         </section>
       </div>
     </main>

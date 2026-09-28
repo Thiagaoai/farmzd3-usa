@@ -3,6 +3,7 @@
 // Orders, images, decisions and positions are saved to .data/ (development only).
 // Real values in .env.local (e.g. Supabase, Resend, TYPESAFE_API_KEY) take precedence.
 import { spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -16,14 +17,30 @@ const defaults = {
   ADMIN_API_TOKEN: 'local-dev-api',
   FARMZ3D_ORDERS_EMAIL: 'orders@localhost.invalid',
 };
+// Keys set in .env.local win over the defaults (Next.js loads that file itself, but it never
+// overrides a variable that is already set, so a default must not be set for those keys).
+const envLocalKeys = new Set(
+  existsSync('.env.local')
+    ? readFileSync('.env.local', 'utf8')
+        .split(/\r?\n/)
+        .map((line) => line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/)?.[1])
+        .filter(Boolean)
+    : [],
+);
+for (const key of Object.keys(defaults)) if (envLocalKeys.has(key)) delete defaults[key];
+// With a real database in .env.local, the local JSON database stays off.
+if (envLocalKeys.has('NEXT_PUBLIC_SUPABASE_URL')) delete defaults.LOCAL_DEMO_DB;
+
 const env = { ...defaults, ...process.env };
+const adminUser = env.ADMIN_DASHBOARD_USER ?? '(definido no .env.local)';
+const adminPassword = defaults.ADMIN_DASHBOARD_PASSWORD ?? '(a do .env.local)';
 
 console.log(`
   Farmz3D — local
   ─────────────────────────────────────────────
   Loja:                http://localhost:${port}
   Painel:              http://localhost:${port}/admin/login
-                       usuário: ${env.ADMIN_DASHBOARD_USER}   senha: ${env.ADMIN_DASHBOARD_PASSWORD}
+                       usuário: ${adminUser}   senha: ${adminPassword}
   Banco local:         .data/local-db.json ${process.env.NEXT_PUBLIC_SUPABASE_URL ? '(ignorado: Supabase real configurado)' : ''}
   Jev (TypeSafe):      ${env.TYPESAFE_API_KEY ? 'ligado' : 'desligado — defina TYPESAFE_API_KEY em .env.local para ativar'}
 `);

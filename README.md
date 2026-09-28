@@ -28,6 +28,8 @@ npm run local
 - Loja: http://localhost:3002
 - Painel: http://localhost:3002/admin/login → usuário `admin`, senha `farmz3d-local`
 
+A senha do site (farmz3d.shop) **não vale** no modo local — lá é sempre `admin` / `farmz3d-local`, a menos que você defina `ADMIN_DASHBOARD_USER` e `ADMIN_DASHBOARD_PASSWORD` no `.env.local`. Atenção: o repositório antigo `thiagao.ai` tem outro painel (newsletter); a loja é **este** repositório.
+
 No modo local, pedidos e imagens ficam em `.data/` (apague a pasta para zerar) e emails não são enviados. Se criar `.env.local` com Supabase/Resend reais, eles são usados.
 
 Checagem completa: `npm run check` (lint + tipos + testes + build).
