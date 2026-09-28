@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getClientIp, isRateLimited, isSameOriginRequest, safeEqual } from '@/lib/shared/request-guard';
+import { adminLogins, matchLogin } from '@/lib/auth/logins';
+import { getClientIp, isBlocked, isRateLimited, isSameOriginRequest } from '@/lib/shared/request-guard';
 
 export const runtime = 'nodejs';
 
-const MAX_ATTEMPTS_PER_HOUR = 10;
+// Only wrong passwords count, so testing a correct login never locks anyone out.
+const MAX_FAILURES_PER_HOUR = 20;
 
-// Single admin login from the environment (ADMIN_DASHBOARD_USER / ADMIN_DASHBOARD_PASSWORD).
+// Panel logins from the environment (see lib/auth/logins.ts: up to two people).
 // The session cookie holds ADMIN_DASHBOARD_TOKEN; rotating it logs everyone out.
 export async function POST(request: Request) {
-  const user = process.env.ADMIN_DASHBOARD_USER;
-  const password = process.env.ADMIN_DASHBOARD_PASSWORD;
   const sessionToken = process.env.ADMIN_DASHBOARD_TOKEN;
 
-  if (!user || !password || !sessionToken) {
+  if (!adminLogins().length || !sessionToken) {
     return NextResponse.json({ ok: false, message: 'Login não configurado.' }, { status: 500 });
   }
   if (!isSameOriginRequest(request)) {
@@ -27,21 +27,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: 'Informe usuário e senha.' }, { status: 400 });
   }
 
-  if (
-    isRateLimited(`admin-login:ip:${getClientIp(request)}`, MAX_ATTEMPTS_PER_HOUR) ||
-    isRateLimited(`admin-login:user:${providedUser.toLowerCase()}`, MAX_ATTEMPTS_PER_HOUR)
-  ) {
-    return NextResponse.json({ ok: false, message: 'Muitas tentativas. Tente de novo em 1 hora.' }, { status: 429 });
+  const ipKey = `admin-login:ip:${getClientIp(request)}`;
+  const userKey = `admin-login:user:${providedUser.toLowerCase()}`;
+  if (isBlocked(ipKey, MAX_FAILURES_PER_HOUR) || isBlocked(userKey, MAX_FAILURES_PER_HOUR)) {
+    return NextResponse.json({ ok: false, message: 'Muitas tentativas erradas. Tente de novo em 1 hora.' }, { status: 429 });
   }
 
-  // Evaluate both comparisons so the response time does not reveal which one failed.
-  const userOk = safeEqual(providedUser, user);
-  const passwordOk = safeEqual(providedPassword, password);
-  if (!userOk || !passwordOk) {
+  const matched = matchLogin(providedUser, providedPassword);
+  if (!matched) {
+    isRateLimited(ipKey, MAX_FAILURES_PER_HOUR);
+    isRateLimited(userKey, MAX_FAILURES_PER_HOUR);
     return NextResponse.json({ ok: false, message: 'Usuário ou senha inválidos.' }, { status: 401 });
   }
 
-  const response = NextResponse.json({ ok: true, redirectTo: '/admin' });
+  const response = NextResponse.json({ ok: true, redirectTo: '/admin', user: matched });
   response.cookies.set('farmz3d_admin_session', sessionToken, {
     httpOnly: true,
     sameSite: 'lax',

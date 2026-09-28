@@ -51,6 +51,12 @@ export function isRateLimited(key: string, max: number) {
   return current.count > max;
 }
 
+// Read-only check: true when the key already used up its budget in the current window.
+export function isBlocked(key: string, max: number) {
+  const current = attempts.get(key);
+  return Boolean(current && current.resetAt > Date.now() && current.count >= max);
+}
+
 export function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')

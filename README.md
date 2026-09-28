@@ -47,8 +47,10 @@ SUPABASE_SERVICE_ROLE_KEY=...
 RESEND_API_KEY=...
 FARMZ3D_ORDERS_EMAIL=<email da Bruna>             # recebe os pedidos
 FARMZ3D_FROM_EMAIL="Farmz3D <orders@farmz3d.shop>" # domínio verificado no Resend (passo 5)
-ADMIN_DASHBOARD_USER=bruna
-ADMIN_DASHBOARD_PASSWORD=<senha forte, 16+ caracteres>
+ADMIN_DASHBOARD_USER=thiago
+ADMIN_DASHBOARD_PASSWORD=<senha do Thiago, 12+ caracteres>
+ADMIN_DASHBOARD_USER_2=bruna                 # segundo login (opcional)
+ADMIN_DASHBOARD_PASSWORD_2=<senha da Bruna, 12+ caracteres>
 ADMIN_DASHBOARD_TOKEN=<aleatório: openssl rand -hex 32>
 FARMZ3D_SITE_URL=https://farmz3d.shop
 ```
@@ -101,6 +103,7 @@ Sem Stripe, marque "Pago" manualmente (Zelle, Venmo, dinheiro).
 - Preços e total calculados no servidor (nunca vêm do navegador); anti-spam (honeypot + tempo mínimo + limite por IP).
 - Cabeçalhos: CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`. Next.js 16.3.6, `npm audit` sem vulnerabilidades.
 - Trocar `ADMIN_DASHBOARD_TOKEN` desloga todo mundo.
+- Cada pessoa tem seu login (Thiago e Bruna). O usuário não diferencia maiúsculas. Para conferir uma senha sem sair: abra uma janela anônima e faça login lá. Só tentativas erradas contam para o bloqueio (20 por hora).
 
 ## 8. Produtos, preços e licenças
 - Produtos: `lib/farmz3d/catalog.ts` · imagens: `lib/farmz3d/media.ts` (prévias geradas por IA — troque por fotos reais em `public/`).

@@ -21,12 +21,21 @@ export default function LoginForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = (await response.json()) as { ok?: boolean; message?: string; redirectTo?: string };
+      const data = (await response.json()) as { ok?: boolean; message?: string; redirectTo?: string; user?: string };
 
       if (!response.ok || !data.ok) {
         throw new Error(data.message ?? 'Não foi possível entrar.');
       }
 
+      // The "who is using" switch in the panel starts with whoever logged in.
+      const person = data.user?.toLowerCase();
+      if (person === 'thiago' || person === 'bruna') {
+        try {
+          window.localStorage.setItem('farmz3d-decider', person);
+        } catch {
+          // storage unavailable: the switch keeps its default
+        }
+      }
       window.location.href = data.redirectTo ?? '/admin';
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível entrar.');
