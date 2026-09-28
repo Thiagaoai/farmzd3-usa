@@ -57,7 +57,7 @@ export default async function AdminHome() {
                     <span className="ml-auto flex items-center gap-2">
                       <PaymentBadge status={order.payment_status} />
                       <StatusBadge status={order.status} />
-                      <span className="text-sm font-semibold">{usd(order.estimated_total_cents)}</span>
+                      <span className="text-sm font-semibold">{order.product_id === 'custom-quote' && order.estimated_total_cents <= 0 ? 'Orçamento' : usd(order.estimated_total_cents)}</span>
                     </span>
                     <span className="w-full text-xs text-zinc-500">{formatWhen(order.created_at)}</span>
                   </Link>

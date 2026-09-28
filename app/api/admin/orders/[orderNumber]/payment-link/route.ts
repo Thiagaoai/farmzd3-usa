@@ -16,6 +16,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   const order = await getOrder(orderNumber);
   if (!order) return NextResponse.json({ ok: false, message: 'Pedido não encontrado.' }, { status: 404 });
   if (order.payment_status === 'paid') return NextResponse.json({ ok: false, message: 'Este pedido já está pago.' }, { status: 409 });
+  if (order.estimated_total_cents <= 0) {
+    return NextResponse.json({ ok: false, message: 'Defina o valor do orçamento primeiro (em “Atualizar pedido”).' }, { status: 409 });
+  }
 
   const session = await createCheckoutSession({
     orderNumber,

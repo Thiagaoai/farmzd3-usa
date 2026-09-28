@@ -18,6 +18,8 @@ async function send(url: string, method: string, body: unknown) {
 
 type EditableOrder = {
   order_number: string;
+  product_id: string;
+  estimated_total_cents: number;
   status: string;
   payment_status: string;
   fulfillment: 'pickup' | 'shipping';
@@ -53,7 +55,9 @@ export function OrderEditor({
     trackingCarrier: order.tracking_carrier ?? 'usps',
     trackingNumber: order.tracking_number ?? '',
     internalNotes: order.internal_notes ?? '',
+    quotedTotal: order.estimated_total_cents > 0 ? (order.estimated_total_cents / 100).toFixed(2) : '',
   });
+  const isQuote = order.product_id === 'custom-quote';
   const [state, setState] = useState<{ busy: boolean; error: string; saved: boolean }>({ busy: false, error: '', saved: false });
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -63,6 +67,7 @@ export function OrderEditor({
       await send(`/api/admin/orders/${order.order_number}`, 'PATCH', {
         ...form,
         trackingCarrier: form.trackingNumber ? form.trackingCarrier : null,
+        quotedTotal: isQuote && form.quotedTotal ? form.quotedTotal : undefined,
         author: actor,
       });
       setState({ busy: false, error: '', saved: true });
@@ -74,6 +79,13 @@ export function OrderEditor({
 
   return (
     <div className="grid gap-4">
+      {isQuote && (
+        <label className={`${label} rounded-2xl border border-cyan-300/30 bg-cyan-300/5 p-3`}>
+          Valor do orçamento (US$, frete incluso)
+          <input value={form.quotedTotal} onChange={set('quotedTotal')} inputMode="decimal" placeholder="Ex.: 45.00" className={input} />
+          <span className="font-normal text-zinc-500">Salve o valor e depois use o modelo “Enviar orçamento” em Falar com o cliente.</span>
+        </label>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
           Status do pedido

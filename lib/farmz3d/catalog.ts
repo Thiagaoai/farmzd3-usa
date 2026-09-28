@@ -398,7 +398,8 @@ export const OrderInputSchema = z
     // Products are managed in the panel; existence and price are checked on the server.
     productId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,59}$/, 'Please choose a product.'),
     quantity: z.coerce.number().int().min(1).max(50),
-    personalization: z.string().trim().min(1, 'Tell us what to personalize.').max(300),
+    // Up to 300 characters; custom-quote requests ("describe your idea") get up to 1000.
+    personalization: z.string().trim().min(1, 'Tell us what to personalize.').max(1000),
     neededBy: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the date picker.')
@@ -425,6 +426,9 @@ export const OrderInputSchema = z
     startedAt: z.number().optional(),
   })
   .superRefine((order, ctx) => {
+    if (order.productId !== 'custom-quote' && order.personalization.length > 300) {
+      ctx.addIssue({ code: 'custom', message: 'Keep the personalization under 300 characters.', path: ['personalization'] });
+    }
     if (order.fulfillment === 'pickup') return;
     if (!order.shipLine1) ctx.addIssue({ code: 'custom', message: 'Enter the street address for shipping.', path: ['shipLine1'] });
     if (!order.shipCity) ctx.addIssue({ code: 'custom', message: 'Enter the city for shipping.', path: ['shipCity'] });

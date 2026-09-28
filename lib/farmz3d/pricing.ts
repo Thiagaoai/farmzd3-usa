@@ -1,4 +1,5 @@
 import { getResolvedNumbers } from '@/lib/decisions/store';
+import { CUSTOM_PRODUCT, CUSTOM_PRODUCT_ID } from './custom';
 import { listProducts, type StoreProduct } from './products';
 import { ORDER_LEAD_DAYS, type CampaignId, type LeadDays } from './season';
 
@@ -25,6 +26,7 @@ export async function getLiveCatalog(): Promise<{ products: StoreProduct[]; lead
 }
 
 export async function findProduct(id: string) {
+  if (id === CUSTOM_PRODUCT_ID) return CUSTOM_PRODUCT;
   const { products } = await listProducts({ includeInactive: true });
   return products.find((product) => product.id === id) ?? null;
 }

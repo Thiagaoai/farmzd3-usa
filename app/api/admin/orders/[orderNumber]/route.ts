@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { actorName } from '@/lib/farmz3d/admin-actor';
 import { isFarmz3dAdminRequest } from '@/lib/farmz3d/admin-auth';
 import { getOrder, OrderUpdateSchema, PAYMENT_LABELS, STATUS_LABELS, updateOrder } from '@/lib/farmz3d/admin-data';
+import { formatUsd } from '@/lib/farmz3d/catalog';
+import { isCustomOrder } from '@/lib/farmz3d/custom';
 import { logOrderMessage } from '@/lib/farmz3d/messages';
 import { releaseStock, reserveStock } from '@/lib/farmz3d/products';
 
@@ -25,10 +27,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
   const changes: string[] = [];
   const now = new Date().toISOString();
 
+  if (input.quotedTotal !== undefined && input.quotedTotal !== current.estimated_total_cents) {
+    if (!isCustomOrder(current)) {
+      return NextResponse.json({ ok: false, message: 'Só pedidos personalizados têm orçamento.' }, { status: 400 });
+    }
+    if (current.payment_status === 'paid') {
+      return NextResponse.json({ ok: false, message: 'O pedido já foi pago; o valor não pode mudar.' }, { status: 409 });
+    }
+    patch.estimated_total_cents = input.quotedTotal;
+    patch.unit_price_cents = Math.round(input.quotedTotal / current.quantity);
+    // A new amount makes an old payment link wrong.
+    if (current.payment_url) {
+      patch.payment_url = null;
+      patch.stripe_session_id = null;
+      if (current.payment_status === 'link_sent') patch.payment_status = 'unpaid';
+    }
+    changes.push(`Orçamento: ${formatUsd(input.quotedTotal)}${current.payment_url ? ' (link de pagamento antigo descartado)' : ''}`);
+  }
+
   if (input.status && input.status !== current.status) {
     // Cancelling returns the units to stock; reopening takes them again.
-    if (input.status === 'cancelled') await releaseStock(current.product_id, current.quantity);
-    if (current.status === 'cancelled') {
+    if (input.status === 'cancelled' && !isCustomOrder(current)) await releaseStock(current.product_id, current.quantity);
+    if (current.status === 'cancelled' && !isCustomOrder(current)) {
       const stock = await reserveStock(current.product_id, current.quantity);
       if (!stock.ok) return NextResponse.json({ ok: false, message: `Sem estoque para reabrir: ${stock.message}` }, { status: 409 });
     }

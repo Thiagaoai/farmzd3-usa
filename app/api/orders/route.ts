@@ -102,7 +102,7 @@ export async function POST(request: Request) {
           orderNumber: saved.orderNumber,
           channel: 'system',
           direction: 'internal',
-          body: email.emailed ? 'Pedido recebido pelo site. Emails enviados (loja e cliente).' : 'Pedido recebido pelo site. Email NÃO enviado — responda o cliente pelo painel.',
+          body: `${saved.isQuote ? 'Pedido de ORÇAMENTO recebido pelo site — defina o valor em “Atualizar pedido” e envie com o modelo “Enviar orçamento”.' : 'Pedido recebido pelo site.'} ${email.emailed ? 'Emails enviados (loja e cliente).' : 'Email NÃO enviado — responda o cliente pelo painel.'}`,
         }),
       );
     }
@@ -120,6 +120,7 @@ export async function POST(request: Request) {
       ok: true,
       orderNumber: saved.orderNumber,
       estimatedTotalCents: saved.estimatedTotalCents,
+      quote: saved.isQuote,
       stored,
       emailed: email.emailed,
     });

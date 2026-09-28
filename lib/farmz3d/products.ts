@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getResolvedNumbers } from '@/lib/decisions/store';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { COLLECTION_IDS, PRODUCTS, type PricedProduct } from './catalog';
+import { CUSTOM_PRODUCT_ID } from './custom';
 import { PRODUCT_MEDIA } from './media';
 
 // Products live in farmz3d_products and are edited in /admin/produtos.
@@ -220,7 +221,8 @@ export const ProductInputSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .regex(/^[a-z0-9][a-z0-9-]{1,59}$/, 'Código: letras minúsculas, números e hífen (ex.: caneca-nome).'),
+    .regex(/^[a-z0-9][a-z0-9-]{1,59}$/, 'Código: letras minúsculas, números e hífen (ex.: caneca-nome).')
+    .refine((id) => id !== CUSTOM_PRODUCT_ID, 'Esse código é reservado para pedidos personalizados.'),
   collection: z.enum(COLLECTION_IDS),
   name: z.string().trim().min(2, 'Nome muito curto.').max(80),
   description: z.string().trim().max(600),

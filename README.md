@@ -3,6 +3,7 @@
 Loja de presentes personalizados impressos em 3D (Farmz3D) + painel do Thiago e da Bruna.
 
 - **Loja** (`/`): 34 produtos, preços aprovados no painel, pedido com **imagem** (foto/logo), **WhatsApp da Bruna** em toda a página.
+- **Pedido personalizado (orçamento)**: no dropdown, a primeira opção é "✨ Custom design — free quote by email" (e o bloco "Have an idea? We print it." na loja). O cliente descreve a ideia e anexa foto; **não aparece preço**. No painel o pedido vem marcado **ORÇAMENTO**: preencha "Valor do orçamento" em *Atualizar pedido*, gere o link de pagamento (opcional) e envie com o modelo **Enviar orçamento**.
 - **Pedido**: chega por **email** (com a imagem anexada e botão "Reply on WhatsApp") e aparece no **painel**.
 - **Painel** (`/admin`):
   - **Visão geral**: pedidos novos, para enviar, sem pagamento, vendas 30 dias, estoque baixo, últimas conversas.

@@ -6,6 +6,7 @@ import { toWhatsappDigits, whatsappLink } from '@/lib/farmz3d/contact';
 import { listOrderMessages, messageTemplates, trackingUrl, type OrderMessage } from '@/lib/farmz3d/messages';
 import { formatShipAddress } from '@/lib/farmz3d/orders';
 import { isStripeConfigured } from '@/lib/farmz3d/stripe';
+import { isCustomOrder } from '@/lib/farmz3d/custom';
 import { getOrderTriage } from '@/lib/typesafe/store';
 import { MessageComposer, OrderEditor, PaymentLinkBox } from '../../../_components/OrderClient';
 import { Card, formatWhen, gmailSearchUrl, PaymentBadge, StatusBadge, usd } from '../../../_components/ui';
@@ -64,6 +65,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNum
   });
   const replySubject = `Re: Your Farmz3D order ${order.order_number}`;
   const emailReady = Boolean(process.env.RESEND_API_KEY);
+  const quotePending = isCustomOrder(order) && order.estimated_total_cents <= 0;
 
   return (
     <div>
@@ -76,7 +78,8 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNum
         <StatusBadge status={order.status} />
         <PaymentBadge status={order.payment_status} />
         <span className="text-sm text-zinc-500">{formatWhen(order.created_at)}</span>
-        <span className="ml-auto text-2xl font-black">{usd(order.estimated_total_cents)}</span>
+        {isCustomOrder(order) && <span className="rounded-full bg-cyan-300 px-2.5 py-0.5 text-[11px] font-black text-black">ORÇAMENTO</span>}
+        <span className="ml-auto text-2xl font-black">{quotePending ? 'Orçamento pendente' : usd(order.estimated_total_cents)}</span>
       </header>
 
       {/* Quick actions */}
@@ -111,12 +114,20 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNum
               <Row label="Produto">
                 {order.product_name} <span className="text-zinc-500">×{order.quantity}</span>
               </Row>
-              <Row label="Preço unitário">{usd(order.unit_price_cents)}</Row>
-              <Row label="Frete">{order.fulfillment === 'shipping' ? usd(order.shipping_cents) : 'Retirada — sem frete'}</Row>
-              <Row label="Total">
-                <strong>{usd(order.estimated_total_cents)}</strong>
-              </Row>
-              <Row label="Personalização">
+              {isCustomOrder(order) ? (
+                <Row label="Orçamento">
+                  <strong>{quotePending ? 'Ainda não definido — preencha em “Atualizar pedido”' : `${usd(order.estimated_total_cents)} (frete incluso)`}</strong>
+                </Row>
+              ) : (
+                <>
+                  <Row label="Preço unitário">{usd(order.unit_price_cents)}</Row>
+                  <Row label="Frete">{order.fulfillment === 'shipping' ? usd(order.shipping_cents) : 'Retirada — sem frete'}</Row>
+                  <Row label="Total">
+                    <strong>{usd(order.estimated_total_cents)}</strong>
+                  </Row>
+                </>
+              )}
+              <Row label={isCustomOrder(order) ? 'Ideia do cliente' : 'Personalização'}>
                 <span className="whitespace-pre-wrap">{order.personalization}</span>
               </Row>
               {order.notes && (

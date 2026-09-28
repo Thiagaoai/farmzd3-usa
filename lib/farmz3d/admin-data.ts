@@ -50,6 +50,19 @@ export const OrderUpdateSchema = z.object({
   shipState: optionalText(2),
   shippingZip: optionalText(10),
   internalNotes: optionalText(4000),
+  // Custom-quote orders: the total price the shop quotes, in dollars (shipping included).
+  quotedTotal: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value === '') return undefined;
+      const dollars = typeof value === 'number' ? value : Number(String(value).replace(/[$,\s]/g, ''));
+      if (!Number.isFinite(dollars) || dollars <= 0 || dollars > 100000) {
+        ctx.addIssue({ code: 'custom', message: 'Valor do orçamento inválido.' });
+        return z.NEVER;
+      }
+      return Math.round(dollars * 100);
+    }),
 });
 export type OrderUpdate = z.infer<typeof OrderUpdateSchema>;
 

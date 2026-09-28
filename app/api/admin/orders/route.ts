@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { isFarmz3dAdminRequest } from '@/lib/farmz3d/admin-auth';
 import { getOrder, OrderStatusUpdateSchema, STATUS_LABELS, updateOrderStatus } from '@/lib/farmz3d/admin-data';
 import { logOrderMessage } from '@/lib/farmz3d/messages';
+import { CUSTOM_PRODUCT_ID } from '@/lib/farmz3d/custom';
 import { releaseStock } from '@/lib/farmz3d/products';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,7 @@ export async function PATCH(request: Request) {
   if (!result.ok) return NextResponse.json(result, { status: result.status });
 
   if (current.status !== parsed.data.status) {
-    if (parsed.data.status === 'cancelled') await releaseStock(current.product_id, current.quantity);
+    if (parsed.data.status === 'cancelled' && current.product_id !== CUSTOM_PRODUCT_ID) await releaseStock(current.product_id, current.quantity);
     await logOrderMessage({
       orderNumber: current.order_number,
       channel: 'system',

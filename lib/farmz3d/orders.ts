@@ -6,6 +6,7 @@ import { formatUsd, type OrderInput } from './catalog';
 import { FARMZ3D_WHATSAPP, formatUsPhone, toWhatsappDigits, whatsappLink } from './contact';
 import type { OrderImage } from './order-images';
 import { getLiveCatalog } from './pricing';
+import { CUSTOM_PRODUCT, CUSTOM_PRODUCT_ID } from './custom';
 import { releaseStock, reserveStock, type StoreProduct } from './products';
 import { getActiveCampaign, newYorkToday } from './season';
 
@@ -44,9 +45,12 @@ type SavedOrder = {
   shippingCents: number;
   estimatedTotalCents: number;
   campaign: string;
+  // Custom design: no price until the shop sends a quote.
+  isQuote: boolean;
 };
 
 export async function getOrderableProduct(productId: string): Promise<StoreProduct> {
+  if (productId === CUSTOM_PRODUCT_ID) return CUSTOM_PRODUCT;
   const { products } = await getLiveCatalog();
   const product = products.find((item) => item.id === productId);
   if (!product) throw new OrderRejected('This item is no longer available. Please choose another one.');
@@ -60,20 +64,23 @@ export async function saveOrder(
 ): Promise<{ saved: SavedOrder; product: StoreProduct; stored: boolean; storeError?: string }> {
   // Price and campaign come from the panel and the approved decisions, never from the browser.
   const { products, leadDays, shippingCents: flatShipping } = await getLiveCatalog();
-  const product = products.find((item) => item.id === order.productId);
+  const isQuote = order.productId === CUSTOM_PRODUCT_ID;
+  const product = isQuote ? CUSTOM_PRODUCT : products.find((item) => item.id === order.productId);
   if (!product) throw new OrderRejected('This item is no longer available. Please choose another one.');
 
-  const stock = await reserveStock(product.id, order.quantity);
+  const stock = isQuote ? ({ ok: true, reserved: false } as const) : await reserveStock(product.id, order.quantity);
   if (!stock.ok) throw new OrderRejected(stock.message);
 
   const campaign = getActiveCampaign(new Date(), leadDays).id;
-  const shippingCents = order.fulfillment === 'shipping' ? flatShipping : 0;
+  // A quote includes shipping in the price the shop sends later.
+  const shippingCents = order.fulfillment === 'shipping' && !isQuote ? flatShipping : 0;
   const base = {
     productName: product.name,
     unitPriceCents: product.priceCents,
     shippingCents,
-    estimatedTotalCents: product.priceCents * order.quantity + shippingCents,
+    estimatedTotalCents: isQuote ? 0 : product.priceCents * order.quantity + shippingCents,
     campaign,
+    isQuote,
   };
 
   const supabase = getSupabaseAdmin();
@@ -123,9 +130,13 @@ function orderRows(order: OrderInput, saved: SavedOrder) {
     ['Order', saved.orderNumber],
     ['Product', saved.productName],
     ['Quantity', String(order.quantity)],
-    ['Unit price', formatUsd(saved.unitPriceCents)],
-    ['Shipping', saved.shippingCents ? formatUsd(saved.shippingCents) : 'Local pickup — no shipping'],
-    ['Estimated total', formatUsd(saved.estimatedTotalCents)],
+    ...(saved.isQuote
+      ? [['Price', 'Custom quote — we will email you a price (shipping included) before anything is charged']]
+      : [
+          ['Unit price', formatUsd(saved.unitPriceCents)],
+          ['Shipping', saved.shippingCents ? formatUsd(saved.shippingCents) : 'Local pickup — no shipping'],
+          ['Estimated total', formatUsd(saved.estimatedTotalCents)],
+        ]),
     ['Personalization', order.personalization],
     ['Needed by', order.neededBy ?? '—'],
     ['Fulfillment', order.fulfillment === 'shipping' ? `Ship to ${formatShipAddress(order)}` : 'Local pickup'],
@@ -168,8 +179,10 @@ export async function sendOrderEmails(order: OrderInput, saved: SavedOrder, imag
     from,
     to: ordersEmail,
     replyTo: order.email,
-    subject: `New Farmz3D order ${saved.orderNumber} — ${saved.productName} x${order.quantity}`,
-    html: `<h2 style="font-family:Arial,sans-serif">New order</h2>${rowsToHtml(rows)}${
+    subject: saved.isQuote
+      ? `Quote request ${saved.orderNumber} — ${order.name}`
+      : `New Farmz3D order ${saved.orderNumber} — ${saved.productName} x${order.quantity}`,
+    html: `<h2 style="font-family:Arial,sans-serif">${saved.isQuote ? 'New custom quote request — set the price in the panel' : 'New order'}</h2>${rowsToHtml(rows)}${
       replyOnWhatsapp
         ? `<p style="font-family:Arial,sans-serif;margin-top:20px"><a href="${escapeHtml(replyOnWhatsapp)}" style="background:#25D366;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:bold">Reply on WhatsApp</a></p>`
         : ''
@@ -181,16 +194,19 @@ export async function sendOrderEmails(order: OrderInput, saved: SavedOrder, imag
   if (owner.error) return { emailed: false, error: owner.error.message };
 
   // Customer confirmation is best effort: the owner already has the order.
+  const intro = saved.isQuote
+    ? 'Thanks for your custom request! We will review your idea and email you a quote (usually within 1–2 business days). Nothing is charged until you approve it.'
+    : 'Thanks for your order! We will review the details and reply with a confirmation and a payment link. Nothing is charged until you approve it.';
   const customer = await resend.emails.send({
     from,
     to: order.email,
     replyTo: ordersEmail,
-    subject: `We got your Farmz3D order ${saved.orderNumber}`,
+    subject: saved.isQuote ? `We got your Farmz3D quote request ${saved.orderNumber}` : `We got your Farmz3D order ${saved.orderNumber}`,
     html: `<p style="font-family:Arial,sans-serif">Hi ${escapeHtml(order.name)},</p>
-<p style="font-family:Arial,sans-serif">Thanks for your order! We will review the details and reply with a confirmation and a payment link. Nothing is charged until you approve it.</p>
+<p style="font-family:Arial,sans-serif">${escapeHtml(intro)}</p>
 ${rowsToHtml(rows)}
 <p style="font-family:Arial,sans-serif">Questions? Reply to this email or message us on WhatsApp: <a href="${escapeHtml(shopWhatsapp)}">${escapeHtml(formatUsPhone(FARMZ3D_WHATSAPP))}</a>.<br/>— Farmz3D</p>`,
-    text: `Hi ${order.name},\n\nThanks for your order! We will reply with a confirmation and a payment link. Nothing is charged until you approve it.\n\n${text}\n\nQuestions? Reply to this email or message us on WhatsApp: ${shopWhatsapp}\n\n— Farmz3D`,
+    text: `Hi ${order.name},\n\n${intro}\n\n${text}\n\nQuestions? Reply to this email or message us on WhatsApp: ${shopWhatsapp}\n\n— Farmz3D`,
   });
 
   return { emailed: true, customerEmailed: !customer.error };

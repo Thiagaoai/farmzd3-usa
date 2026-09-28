@@ -118,6 +118,8 @@ export function trackingUrl(carrier: string | null, number: string | null) {
 
 type TemplateOrder = {
   order_number: string;
+  product_id: string;
+  personalization: string;
   customer_name: string;
   product_name: string;
   quantity: number;
@@ -136,7 +138,23 @@ export function messageTemplates(order: TemplateOrder) {
   const hi = `Hi ${firstName(order.customer_name)},`;
   const item = `${order.product_name} x${order.quantity}`;
   const track = trackingUrl(order.tracking_carrier, order.tracking_number);
+  const quote =
+    order.product_id === 'custom-quote'
+      ? [
+          {
+            id: 'quote',
+            label: 'Enviar orçamento',
+            subject: `Your Farmz3D custom quote ${order.order_number}`,
+            body: `${hi}\n\nThank you for your custom request! Here is your quote:\n\n${order.personalization.slice(0, 300)}\n\nTotal: ${
+              order.estimated_total_cents > 0 ? usd(order.estimated_total_cents) : '$__ (set the amount in the panel first)'
+            } (shipping included)\nReady in about __ business days after payment.\n\n${
+              order.payment_url ? `To approve, pay securely here: ${order.payment_url}` : 'Reply "yes" to approve and we will send you a secure payment link.'
+            }\n\nHappy to adjust anything — just reply to this email.`,
+          },
+        ]
+      : [];
   return [
+    ...quote,
     {
       id: 'confirm',
       label: 'Confirmar + pagamento',

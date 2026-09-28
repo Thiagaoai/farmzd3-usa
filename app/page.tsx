@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { COLLECTIONS, formatUsd, type CollectionId } from '@/lib/farmz3d/catalog';
 import { FARMZ3D_WHATSAPP, formatUsPhone, whatsappLink } from '@/lib/farmz3d/contact';
+import { CUSTOM_PRODUCT } from '@/lib/farmz3d/custom';
 import { LIFESTYLE_MEDIA } from '@/lib/farmz3d/media';
 import { getLiveCatalog } from '@/lib/farmz3d/pricing';
 import { formatLongDate, getActiveCampaign, getUpcomingCampaigns, newYorkToday } from '@/lib/farmz3d/season';
@@ -75,7 +76,15 @@ export default async function Farmz3dPage() {
     ...COLLECTIONS.map((collection) => collection.id).filter((id) => id !== campaign.id),
   ];
   const firstProduct = PRODUCTS.find((product) => product.collection === campaign.id && !product.soldOut) ?? PRODUCTS.find((product) => !product.soldOut) ?? PRODUCTS[0];
-  const productOptions = collectionOrder.flatMap((collectionId) => {
+  const customOption = {
+    id: CUSTOM_PRODUCT.id,
+    name: CUSTOM_PRODUCT.name,
+    collectionName: 'Custom design',
+    priceCents: 0,
+    unitLabel: CUSTOM_PRODUCT.unitLabel,
+    personalizationHint: CUSTOM_PRODUCT.personalizationHint,
+  };
+  const catalogOptions = collectionOrder.flatMap((collectionId) => {
     const collection = COLLECTIONS.find((item) => item.id === collectionId);
     return PRODUCTS.filter((product) => product.collection === collectionId && !product.soldOut).map((product) => ({
       id: product.id,
@@ -86,6 +95,8 @@ export default async function Farmz3dPage() {
       personalizationHint: product.personalizationHint,
     }));
   });
+  // "Custom design" is always offered first: no price, a quote by email.
+  const productOptions = [customOption, ...catalogOptions];
 
   return (
     <div
@@ -249,6 +260,12 @@ export default async function Farmz3dPage() {
                     </a>
                   );
                 })}
+                <a
+                  href="#custom"
+                  className="rounded-full border border-[#2B5BFF] bg-[#2B5BFF] px-3.5 py-1.5 text-white transition hover:bg-[#1E47D9]"
+                >
+                  ✨ Custom design
+                </a>
               </nav>
             </Reveal>
 
@@ -327,6 +344,29 @@ export default async function Farmz3dPage() {
                 </div>
               );
             })}
+            <Reveal>
+              <div id="custom" className="mt-16 grid scroll-mt-28 gap-6 overflow-hidden rounded-[28px] bg-[#0B0C0E] p-8 text-white sm:grid-cols-[1.4fr_1fr] sm:items-center sm:p-12">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-[#8EA3FF] fz-mono">Custom design</p>
+                  <h3 className="mt-3 text-3xl font-medium leading-tight fz-display sm:text-4xl">Have an idea? We print it.</h3>
+                  <p className="mt-3 max-w-lg text-white/70">
+                    Replacement parts, gifts, signs, logos, cosplay pieces — describe it, attach a photo or sketch, and we email you a quote. Free, no obligation.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:items-end">
+                  <a
+                    href="#order"
+                    data-product-id={CUSTOM_PRODUCT.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 font-medium text-[#0B0C0E] transition hover:bg-[#DDE4FF]"
+                  >
+                    Get a free quote <ArrowRight className="h-4 w-4" />
+                  </a>
+                  <a href={CHAT_LINK} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white">
+                    <WhatsAppIcon className="h-4 w-4" /> or send the idea on WhatsApp
+                  </a>
+                </div>
+              </div>
+            </Reveal>
           </section>
 
           {/* LIFESTYLE */}

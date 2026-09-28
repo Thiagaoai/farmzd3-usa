@@ -92,7 +92,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     {order.needed_by && <p className="text-amber-200">Até {order.needed_by}</p>}
                     {order.tracking_number && <p className="text-emerald-300">Rastreio ✓</p>}
                   </td>
-                  <td className="px-4 py-3 font-semibold">{usd(order.estimated_total_cents)}</td>
+                  <td className="px-4 py-3 font-semibold">{order.product_id === 'custom-quote' && order.estimated_total_cents <= 0 ? 'Orçamento' : usd(order.estimated_total_cents)}</td>
                   <td className="px-4 py-3">
                     <PaymentBadge status={order.payment_status} />
                   </td>

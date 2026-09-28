@@ -71,3 +71,10 @@ test('product ids must be slugs', () => {
   assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'Bad Id!' }).success, false);
   assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'new-mug-2026' }).success, true);
 });
+
+test('custom quote requests can describe the idea at length; regular orders stay short', () => {
+  const long = 'x'.repeat(800);
+  assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'custom-quote', personalization: long }).success, true);
+  assert.equal(OrderInputSchema.safeParse({ ...valid, personalization: long }).success, false);
+  assert.equal(OrderInputSchema.safeParse({ ...valid, productId: 'custom-quote', personalization: 'x'.repeat(1001) }).success, false);
+});

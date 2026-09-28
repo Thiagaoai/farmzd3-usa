@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { CheckCircle2, ImagePlus, Loader2, X } from 'lucide-react';
 import { whatsappLink } from '@/lib/farmz3d/contact';
+import { CUSTOM_PRODUCT_ID } from '@/lib/farmz3d/custom';
 import WhatsAppIcon from './WhatsAppIcon';
 
 type ProductOption = {
@@ -24,7 +25,7 @@ type Props = {
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-type Status = { state: 'idle' | 'loading' | 'error'; message?: string } | { state: 'success'; orderNumber: string; totalCents: number; productName: string; quantity: number };
+type Status = { state: 'idle' | 'loading' | 'error'; message?: string } | { state: 'success'; orderNumber: string; totalCents: number; productName: string; quantity: number; quote: boolean };
 
 const usd = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
@@ -67,6 +68,7 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
   }, []);
 
   const product = products.find((option) => option.id === productId) ?? products[0];
+  const isQuote = product?.id === CUSTOM_PRODUCT_ID;
   const collections = Array.from(new Set(products.map((option) => option.collectionName)));
 
   function clearImage() {
@@ -123,6 +125,7 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
         message?: string;
         orderNumber?: string | null;
         estimatedTotalCents?: number;
+        quote?: boolean;
       };
 
       if (!response.ok || !data.ok || !data.orderNumber) {
@@ -135,6 +138,7 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
         totalCents: data.estimatedTotalCents ?? 0,
         productName: product?.name ?? '',
         quantity,
+        quote: Boolean(data.quote),
       });
       clearImage();
     } catch (error) {
@@ -146,16 +150,22 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
     return (
       <div className="rounded-3xl border border-[#D6DEFF] bg-[#F2F5FF] p-8 text-center" role="status">
         <CheckCircle2 className="mx-auto h-12 w-12 text-[#2B5BFF]" />
-        <h3 className="mt-4 text-2xl font-bold text-[#0B0C0E]">Order received!</h3>
+        <h3 className="mt-4 text-2xl font-bold text-[#0B0C0E]">{status.quote ? 'Quote request received!' : 'Order received!'}</h3>
         <p className="mt-2 text-[#5A5F66]">
-          Your order number is <strong className="font-mono text-[#0B0C0E]">{status.orderNumber}</strong>.
+          Your {status.quote ? 'request' : 'order'} number is <strong className="font-mono text-[#0B0C0E]">{status.orderNumber}</strong>.
         </p>
         <p className="mt-2 text-[#5A5F66]">
-          Estimated total {usd(status.totalCents)}. We will email you a confirmation and a payment link —
-          nothing is charged until you approve it.
+          {status.quote
+            ? 'We will review your idea and email you a quote, usually within 1–2 business days. Nothing is charged until you approve it.'
+            : `Estimated total ${usd(status.totalCents)}. We will email you a confirmation and a payment link — nothing is charged until you approve it.`}
         </p>
         <a
-          href={whatsappLink(whatsapp, `Hi Bruna! I just placed Farmz3D order ${status.orderNumber} (${status.productName} x${status.quantity}).`)}
+          href={whatsappLink(
+            whatsapp,
+            status.quote
+              ? `Hi Bruna! I just sent a custom quote request (${status.orderNumber}).`
+              : `Hi Bruna! I just placed Farmz3D order ${status.orderNumber} (${status.productName} x${status.quantity}).`,
+          )}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-[#1EBE5A]"
@@ -196,7 +206,7 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
                   .filter((option) => option.collectionName === collection)
                   .map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.name} — {usd(option.priceCents)} {option.unitLabel}
+                      {option.id === CUSTOM_PRODUCT_ID ? '✨ Custom design — free quote by email' : `${option.name} — ${usd(option.priceCents)} ${option.unitLabel}`}
                     </option>
                   ))}
               </optgroup>
@@ -217,14 +227,21 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
         </label>
       </div>
 
+      {isQuote && (
+        <p className="rounded-xl border border-[#D6DEFF] bg-[#F2F5FF] px-4 py-3 text-sm text-[#3A3F47]">
+          Have something in mind that is not in the shop? Describe it below and attach a photo or sketch. We will email you a quote with the final
+          price (shipping included). No payment now.
+        </p>
+      )}
+
       <label className="grid gap-2 text-sm font-semibold text-[#0B0C0E]">
-        Personalization
+        {isQuote ? 'Describe your idea' : 'Personalization'}
         <textarea
           value={personalization}
           onChange={(event) => setPersonalization(event.target.value)}
           placeholder={product?.personalizationHint}
-          maxLength={300}
-          rows={3}
+          maxLength={isQuote ? 1000 : 300}
+          rows={isQuote ? 5 : 3}
           className={inputClass}
           required
         />
@@ -375,8 +392,16 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
 
       <div className="flex flex-col items-start justify-between gap-4 border-t border-[#E4E5E8] pt-5 sm:flex-row sm:items-center">
         <p className="text-sm text-[#5A5F66]">
-          Estimated: <strong className="text-lg text-[#0B0C0E]">{product ? usd(product.priceCents * quantity + (fulfillment === 'shipping' ? shippingCents : 0)) : '—'}</strong>{' '}
-          <span className="text-xs">{fulfillment === 'shipping' ? `incl. ${usd(shippingCents)} shipping` : 'local pickup'} · pay after we confirm</span>
+          {isQuote ? (
+            <>
+              Price: <strong className="text-lg text-[#0B0C0E]">Quote by email</strong> <span className="text-xs">· free, no obligation</span>
+            </>
+          ) : (
+            <>
+              Estimated: <strong className="text-lg text-[#0B0C0E]">{product ? usd(product.priceCents * quantity + (fulfillment === 'shipping' ? shippingCents : 0)) : '—'}</strong>{' '}
+              <span className="text-xs">{fulfillment === 'shipping' ? `incl. ${usd(shippingCents)} shipping` : 'local pickup'} · pay after we confirm</span>
+            </>
+          )}
         </p>
         <button
           type="submit"
@@ -384,7 +409,7 @@ export default function OrderForm({ products, defaultProductId, today, shippingC
           className="inline-flex w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#0B0C0E] px-8 py-3.5 font-semibold text-white shadow-md transition hover:bg-[#2B5BFF] disabled:opacity-60 sm:w-auto"
         >
           {status.state === 'loading' && <Loader2 className="h-4 w-4 animate-spin" />}
-          Send my order
+          {isQuote ? 'Request my quote' : 'Send my order'}
         </button>
       </div>
 
